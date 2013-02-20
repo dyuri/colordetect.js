@@ -1,0 +1,27 @@
+<html>
+  <head>
+    <style>
+      #copy,
+      #webcam {
+        width: 640px;
+        height: 480px;
+      }
+      #sample,
+      #webcam {
+        display: none;
+      }
+      #debug {
+        min-height: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <video width="640" height="480" id="webcam"></video>
+    <canvas width="640" height="480" id="copy"></canvas>
+    <!-- canvas width="640" height="480" id="bw"></canvas -->
+    <canvas width="32" height="32" id="sample"></canvas>
+    <div id="debug">
+    </div>
+    <script src="colordetect.js"></script>
+  </body>
+</html>
