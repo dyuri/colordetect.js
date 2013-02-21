@@ -4,7 +4,8 @@
   var requestAnimationFrame = ns.requestAnimationFrame = window.requestAnimationFrame || 
     window.webkitRequestAnimationFrame ||
     window.mozRequestAnimationFrame ||
-    window.msRequestAnimationFrame;
+    window.msRequestAnimationFrame ||
+    function (cb) { window.setTimeout(cb, 1000 / 60); };
 
   var getUserMedia = ns.getUserMedia = (
     navigator.getUserMedia && navigator.getUserMedia.bind(navigator) ||
@@ -22,7 +23,7 @@
       function (localMediaStream) {
         var video = document.createElement("video");
 
-        video.src = window.URL.createObjectURL(localMediaStream);
+        video.src = window.URL && window.URL.createObjectURL(localMediaStream) || localMediaStream;
         video.width = 640;
         video.height = 480;
         video.style.display = "none";
@@ -58,7 +59,7 @@
    * toString for colors
    * @return {string}
    */
-  ns.Color.prototype.toString = function () {
+  Color.prototype.toString = function () {
     if (this.alpha !== 1) {
       return "rgba("+([this.red, this.green, this.blue, this.alpha].join(", "))+")";
     } else {
@@ -70,7 +71,7 @@
    * return the complementer color
    * @return {Color}
    */
-  ns.Color.prototype.invert = function () {
+  Color.prototype.invert = function () {
     return new Color(255-this.red, 255-this.green, 255-this.blue, this.alpha);
   };
 
@@ -78,7 +79,7 @@
    * Hex code of the color
    * @return {string} the hex code
    */
-  ns.Color.prototype.toHex = function () {
+  Color.prototype.toHex = function () {
     var r = this.red >= 16 ? this.red.toString(16) : '0'+this.red.toString(16),
         g = this.green >= 16 ? this.green.toString(16) : '0'+this.green.toString(16),
         b = this.blue >= 16 ? this.blue.toString(16) : '0'+this.blue.toString(16);
@@ -90,7 +91,7 @@
    * HSL values of the color
    * @return {Array.<number>} [hue, saturation, lightning]
    */
-  ns.Color.prototype.toHsl = function () {
+  Color.prototype.toHsl = function () {
     var r = this.red / 255,
         g = this.green / 255,
         b = this.blue / 255,
@@ -127,7 +128,7 @@
    * @param {number=} ldiff max lightness difference
    * @return {boolean} true if they are similar, false otherwise
    */
-  ns.Color.prototype.similar = function (color, hdiff, sdiff, ldiff) {
+  Color.prototype.similar = function (color, hdiff, sdiff, ldiff) {
     // hue - max 0.01 difference
     // saturation - max 0.2 difference
     var hsl1 = this.toHsl(), hsl2 = color.toHsl();
@@ -143,7 +144,7 @@
    * @param {Color} color the color to compare
    * @return {number} the difference
    */
-  ns.Color.prototype.diff = function (color) {
+  Color.prototype.diff = function (color) {
     var hsl1 = this.toHsl(),
         hsl2 = color.toHsl();
 
@@ -155,7 +156,7 @@
    * @param {Array.<Color>} clist list of colors
    * @return {Color} the average color
    */
-  ns.Color.average = function (clist) {
+  Color.average = function (clist) {
     var r = 0, g = 0, b = 0, i, l = clist.length;
 
     for (i = 0; i < l; i++) {
@@ -198,7 +199,7 @@
    * @param {number=} radius radius of checked subareas to speed up matching
    * @return {?Match}
    */
-  ns.Color.prototype.matchArea = function (imgData, x, y, radius) {
+  Color.prototype.matchArea = function (imgData, x, y, radius) {
     var i, j, c, tempc, go,
         direction, // 1: y, -1: -y
         blocks = [], colors = [], top, bottom, left, right;
@@ -313,7 +314,7 @@
    * @param {HTMLCanvas} canvas
    * @deprecated
    */
-  ns.Color.prototype.searchAndMarkOld = function (canvas) {
+  Color.prototype.searchAndMarkOld = function (canvas) {
     var ctx = canvas.getContext('2d'),
         imgData = ctx.getImageData(0, 0, canvas.width, canvas.height),
         x, y, border = 10,
@@ -368,13 +369,51 @@
     this.canvas.style.display = "none";
     document.body.appendChild(this.canvas);
 
+    this.tracking = {};
+
     this.boundUpdate = this.update.bind(this);
+  };
+
+  /**
+   * add color tracking algorithm to the tracker
+   * replaces the old ct with the same id
+   * @param {ColorTracking} ct color tracking algorithm
+   * @param {string} ctid id
+   */
+  Tracker.prototype.addTracking = function (ct, ctid) {
+    this.tracking[ctid] = ct;
+  };
+
+  /**
+   * remove color tracking algorithm from tracker
+   * @param {string} ctid tracking id to remove
+   * @return {ColorTracking} color tracker instance
+   */
+  Tracker.prototype.removeTracking = function (ctid) {
+    var ct = this.tracking[ctid];
+    
+    delete this.tracking[ctid];
+    
+    return ct;
+  };
+
+  /**
+   * run the color tracking algorithms
+   */
+  Tracker.prototype.track = function () {
+    var ctid;
+
+    for (ctid in this.tracking) {
+      if (this.tracking.hasOwnProperty(ctid)) {
+        this.tracking[ctid].run(this);
+      }
+    }
   };
 
   /**
    * start tracking
    */
-  ns.Tracker.prototype.start = function () {
+  Tracker.prototype.start = function () {
     this.running = true;
     this.update();
   };
@@ -382,18 +421,18 @@
   /**
    * stop tracking
    */
-  ns.Tracker.prototype.stop = function () {
+  Tracker.prototype.stop = function () {
     this.running = false;
   };
 
   /**
    * copies the content of the given video tag onto a canvas
    */
-  ns.Tracker.prototype.update = function () {
+  Tracker.prototype.update = function () {
     if (this.running) {
       this.ctx.drawImage(this.video, 0, 0);
 
-      // TODO do the tracking
+      this.track();
 
       requestAnimationFrame(this.boundUpdate);
     }
@@ -402,55 +441,42 @@
   /**
    * TODO show in popup?
    */
-  ns.Tracker.prototype.showCanvas = function () {
+  Tracker.prototype.showCanvas = function () {
     this.canvas.style.display = "block";
   };
 
   /**
    * TODO hide w/ popup?
    */
-  ns.Tracker.prototype.hideCanvas = function () {
+  Tracker.prototype.hideCanvas = function () {
     this.canvas.style.display = "none";
   };
 
-}(window));
+  /**
+   * color tracking algorithm wrapper objects
+   * @constructor
+   * @param {Color} color tracked color
+   * @param {function(Color, Tracker, Object=)} fun tracking function
+   * @param {Object=} config configuration passed to the tracking function
+   * @param {function=} callback callback function called with the result of the tracking function
+   */
+  var ColorTracking = ns.ColorTracking = function (color, fun, config, callback) {
+    this.color = color;
+    this.fun = fun;
+    this.config = config;
+    this.callback = callback;
+  };
 
-var cd = window.colordetect;
+  /**
+   * run the algorithm, call the callback
+   * @param {Tracker} tracker
+   */
+  ColorTracking.prototype.run = function (tracker) {
+    var result = this.fun(this.color, tracker, this.config);
 
-var refColor;
-
-var handleCamera = function (video) {
-  var tracker = new cd.Tracker(video),
-      canvas = tracker.canvas;
-
-  tracker.start();
-  tracker.showCanvas();
-
-  canvas.addEventListener('click', function (e) {
-    var canvas = tracker.canvas,
-        ctx = tracker.ctx,
-        imgData, x, y, w, h;
-
-    w = 32;
-    h = 32;
-    x = e.offsetX < w/2 ? 0 : (e.offsetX + w/2 >= canvas.width ? canvas.width-1-w : e.offsetX - w/2);
-    y = e.offsetY < h/2 ? 0 : (e.offsetY + h/2 >= canvas.height ? canvas.height-1-h : e.offsetY - h/2);
-
-    imgData = ctx.getImageData(x, y, w, h);
-
-    var color = cd.getRefColor(imgData, w/2, w/2, 3);
-
-    if (color) {
-      console.log(color.toHex());
-      console.log(color.toHsl());
-
-      if (refColor) {
-        console.log("similar: "+refColor.similar(color));
-      }
-      refColor = color;
+    if (this.callback) {
+      this.callback(result);
     }
+  };
 
-  });
-};
-
-cd.getCamera(handleCamera);
+}(window));
