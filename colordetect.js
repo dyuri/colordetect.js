@@ -1,6 +1,44 @@
 (function (w) {
   var ns = w.colordetect = w.colordetect || {};
 
+  var requestAnimationFrame = ns.requestAnimationFrame = window.requestAnimationFrame || 
+    window.webkitRequestAnimationFrame ||
+    window.mozRequestAnimationFrame ||
+    window.msRequestAnimationFrame;
+
+  var getUserMedia = ns.getUserMedia = (
+    navigator.getUserMedia && navigator.getUserMedia.bind(navigator) ||
+    navigator.webkitGetUserMedia && navigator.webkitGetUserMedia.bind(navigator) ||
+    navigator.mozGetUserMedia && navigator.mozGetUserMedia.bind(navigator) ||
+    navigator.msGetUserMedia && navigator.msGetUserMedia.bind(navigator));
+
+  /**
+   * creates a new video tag with the content of the webcam
+   * @param {function(HTMLElement=)} callback will be called upon success with the <video> element or with no parameter on error
+   */
+  ns.getCamera = function (cb) {
+    getUserMedia(
+      { video: true },
+      function (localMediaStream) {
+        var video = document.createElement("video");
+
+        video.src = window.URL.createObjectURL(localMediaStream);
+        video.width = 640;
+        video.height = 480;
+        video.style.display = "none";
+        video.autoplay = true;
+        
+        document.body.appendChild(video);
+
+        cb(video);
+      },
+      function (err) {
+        console.log("The following error occured during opening webcam: "+err);
+        cb();
+      }
+    );
+  };
+
   /**
    * Color class
    * @constructor
@@ -13,19 +51,27 @@
     this.red = parseInt(r, 10);
     this.green = parseInt(g, 10);
     this.blue = parseInt(b, 10);
-    this.aplha = parseFloat(a || 1);
+    this.alpha = parseFloat(a || 1);
   };
 
   /**
    * toString for colors
    * @return {string}
    */
-  ns.Color.toString = function () {
+  ns.Color.prototype.toString = function () {
     if (this.alpha !== 1) {
       return "rgba("+([this.red, this.green, this.blue, this.alpha].join(", "))+")";
     } else {
       return "rgb("+([this.red, this.green, this.blue].join(", "))+")";
     }
+  };
+
+  /**
+   * return the complementer color
+   * @return {Color}
+   */
+  ns.Color.prototype.invert = function () {
+    return new Color(255-this.red, 255-this.green, 255-this.blue, this.alpha);
   };
 
   /**
@@ -298,35 +344,91 @@
     }
 
     if (bestm) {
-      ctx.strokeStyle = this.toHex();
+      ctx.strokeStyle = this.invert().toHex();
       ctx.strokeRect(bestm.left, bestm.top, bestm.width, bestm.height);
     }
   };
 
+  /**
+   * basic infrastructure to track colors
+   * @constructor
+   * @param {HTMLElement} video
+   */
+  var Tracker = ns.Tracker = function (video) {
+    if (!video) {
+      throw "Video tag should not be null!";
+    }
+
+    this.video = video;
+    this.canvas = document.createElement("canvas");
+    this.ctx = this.canvas.getContext("2d");
+
+    this.canvas.width = this.video.width;
+    this.canvas.height = this.video.height;
+    this.canvas.style.display = "none";
+    document.body.appendChild(this.canvas);
+
+    this.boundUpdate = this.update.bind(this);
+  };
+
+  /**
+   * start tracking
+   */
+  ns.Tracker.prototype.start = function () {
+    this.running = true;
+    this.update();
+  };
+
+  /**
+   * stop tracking
+   */
+  ns.Tracker.prototype.stop = function () {
+    this.running = false;
+  };
+
+  /**
+   * copies the content of the given video tag onto a canvas
+   */
+  ns.Tracker.prototype.update = function () {
+    if (this.running) {
+      this.ctx.drawImage(this.video, 0, 0);
+
+      // TODO do the tracking
+
+      requestAnimationFrame(this.boundUpdate);
+    }
+  };
+
+  /**
+   * TODO show in popup?
+   */
+  ns.Tracker.prototype.showCanvas = function () {
+    this.canvas.style.display = "block";
+  };
+
+  /**
+   * TODO hide w/ popup?
+   */
+  ns.Tracker.prototype.hideCanvas = function () {
+    this.canvas.style.display = "none";
+  };
 
 }(window));
 
-var debugDiv = document.getElementById('debug');
-var doTracking = true;
-var rAF = window.requestAnimationFrame || window.webkitRequestAnimationFrame;
-
 var cd = window.colordetect;
 
-var refRadius = 3;
 var refColor;
-var onError = function (e) { console.log(e); };
-var onSuccess = function (stream) {
-  var video = document.getElementById("webcam"),
-      canvas = document.getElementById("copy");
 
-  video.autoplay = true;
-  video.src = window.webkitURL.createObjectURL(stream);
+var handleCamera = function (video) {
+  var tracker = new cd.Tracker(video),
+      canvas = tracker.canvas;
+
+  tracker.start();
+  tracker.showCanvas();
 
   canvas.addEventListener('click', function (e) {
-    var canvas = document.getElementById("copy"),
-        ctx = canvas.getContext("2d"),
-        sample = document.getElementById("sample"),
-        sctx = sample.getContext("2d"),
+    var canvas = tracker.canvas,
+        ctx = tracker.ctx,
         imgData, x, y, w, h;
 
     w = 32;
@@ -336,63 +438,19 @@ var onSuccess = function (stream) {
 
     imgData = ctx.getImageData(x, y, w, h);
 
-    sctx.putImageData(imgData, 0, 0);
-
-    var color = cd.getRefColor(imgData, w/2, w/2, refRadius);
+    var color = cd.getRefColor(imgData, w/2, w/2, 3);
 
     if (color) {
       console.log(color.toHex());
       console.log(color.toHsl());
-      document.getElementById('debug').style.backgroundColor = color.toHex();
 
       if (refColor) {
         console.log("similar: "+refColor.similar(color));
       }
       refColor = color;
-    } else {
-      console.log("adjacent colors don't match");
     }
 
   });
 };
 
-navigator.webkitGetUserMedia({video: true}, onSuccess, onError);
-
-var colorfilter = function (imgData, refColor) {
-  var x, y, c;
-
-  if (refColor) {
-    for (x = 0; x < imgData.width; x++) {
-      for (y = 0; y < imgData.height; y++) {
-        c = cd.getColor(imgData, x, y);
-        if (c.similar(refColor)) {
-          cd.setColor(imgData, x, y, new cd.Color(255, 255, 255));
-        } else {
-          cd.setColor(imgData, x, y, new cd.Color(0, 0, 0));
-        }
-      }
-    }
-  }
-  return imgData;
-};
-
-var process = function () {
-
-  var canvas = document.getElementById("copy");
-  var ctx = canvas.getContext("2d");
-  var video = document.getElementById("webcam");
-  var imgData;
-
-  if (doTracking) {
-    ctx.drawImage(video, 0, 0, video.width, video.height, 0, 0, canvas.width, canvas.height);
-
-    imgData = ctx.getImageData(0, 0, 640, 480);
-    if (refColor) {
-      refColor.searchAndMarkOld(canvas);
-    }
-  }
-
-  rAF(process);
-};
-
-rAF(process);
+cd.getCamera(handleCamera);
