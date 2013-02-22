@@ -1,11 +1,14 @@
 var cd = window.colordetect;
+var tracker;
 
 var handleCamera = function (video) {
-  var tracker = new cd.Tracker(video),
-      canvas = tracker.canvas;
-
+  var canvas;
+  
+  tracker = new cd.Tracker(video);
   tracker.start();
   tracker.showCanvas();
+
+  canvas = tracker.canvas;
 
   /* old search & mark */
   /*
