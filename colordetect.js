@@ -199,7 +199,7 @@
       }
     }
 
-    return num;
+    return max ? (num >= max) : num;
   };
 
   /**
@@ -579,7 +579,8 @@
    * example: { top: false, left: true, right: false, bottom: true }
    */
   algorithms.simplepager = function (color, tracker, config) {
-    var canvas = tracker.canvas;
+    var canvas = tracker.canvas,
+        threshold = config.threshold || 30;
 
     if (!this.ctop) {
       this.ctop = document.createElement("canvas");
@@ -618,16 +619,16 @@
      */
 
     this.ctopctx.drawImage(canvas, 0, 0, 640, 72, 0, 0, 160, 18);
-    this.topmatch = color.countSimilars(this.ctop, 30);
+    this.topmatch = color.countSimilars(this.ctop, threshold);
 
     this.cbottomctx.drawImage(canvas, 0, 408, 640, 72, 0, 0, 160, 18);
-    this.bottommatch = color.countSimilars(this.cbottom, 30);
+    this.bottommatch = color.countSimilars(this.cbottom, threshold);
 
     this.cleftctx.drawImage(canvas, 0, 0, 96, 480, 0, 0, 24, 120);
-    this.leftmatch = color.countSimilars(this.cleft, 30);
+    this.leftmatch = color.countSimilars(this.cleft, threshold);
 
     this.crightctx.drawImage(canvas, 544, 0, 96, 480, 0, 0, 24, 120);
-    this.rightmatch = color.countSimilars(this.cright, 30);
+    this.rightmatch = color.countSimilars(this.cright, threshold);
 
     return {
       top: !!this.topmatch,
