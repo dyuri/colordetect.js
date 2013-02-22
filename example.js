@@ -38,7 +38,8 @@ var handleCamera = function (video) {
   var debug = document.createElement('div');
   document.body.appendChild(debug);
   var ctpager = new cd.ColorTracking(
-    new cd.Color(11, 157, 173), // my cyan pen
+    // new cd.Color(11, 157, 173), // my cyan pen
+    new cd.Color(154, 111, 96), // my hand
     cd.algorithms.simplepager,
     function (res) {
       if (res.top || res.left || res.right || res.bottom) {
@@ -50,7 +51,8 @@ var handleCamera = function (video) {
       } else {
         debug.innerHTML = "";
       }
-    }
+    },
+    { threshold: 200 }
   );
   tracker.addTracking(ctpager, "simplepager");
 };
