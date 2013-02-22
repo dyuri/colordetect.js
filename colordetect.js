@@ -536,7 +536,6 @@
     if (!overlay) {
       overlay = document.createElement("div");
       overlay.id = "cd_canvasOverlay";
-      overlay.style.display = "block";
       document.body.appendChild(overlay);
     }
 
@@ -546,6 +545,7 @@
       overlay.appendChild(holder);
     }
 
+    overlay.style.display = "block";
     holder.appendChild(this.canvas);
 
     this.canvas.style.display = "block";
