@@ -56,6 +56,17 @@
   };
 
   /**
+   * check if the color is valid
+   * @return {boolean}
+   */
+  Color.prototype.isValid = function () {
+    return this.red >= 0 && this.red <= 255 && 
+           this.green >= 0 && this.green <= 255 &&
+           this.blue >= 0 && this.blue <= 255 &&
+           this.alpha <= 1 && this.alpha >= 0;
+  };
+
+  /**
    * toString for colors
    * @return {string}
    */
@@ -92,6 +103,11 @@
    * @return {Array.<number>} [hue, saturation, lightning]
    */
   Color.prototype.toHsl = function () {
+    // caching
+    if (this.h && this.s && this.l) {
+      return [this.h, this.s, this.l];
+    }
+
     var r = this.red / 255,
         g = this.green / 255,
         b = this.blue / 255,
@@ -117,6 +133,9 @@
         h = h / 6;
     }
 
+    this.h = h;
+    this.s = s;
+    this.l = l;
     return [h, s, l];
   };
 
@@ -128,7 +147,7 @@
    * @param {number=} ldiff max lightness difference
    * @return {boolean} true if they are similar, false otherwise
    */
-  Color.prototype.similar = function (color, hdiff, sdiff, ldiff) {
+  Color.prototype.similarHsl = function (color, hdiff, sdiff, ldiff) {
     // hue - max 0.01 difference
     // saturation - max 0.2 difference
     var hsl1 = this.toHsl(), hsl2 = color.toHsl();
@@ -140,16 +159,75 @@
   };
 
   /**
+   * Compares two color based on YUV values
+   * @param {Color} color
+   */
+
+  /**
+   * Compares two color based on RGB values
+   * not as good as similarHsl, but much quicker
+   * @param {Color} color
+   * @param {number=} threshold
+   */
+  Color.prototype.similarRgb = function (color, threshold) {
+    threshold = threshold || 40;
+    return this.diff(color) < threshold;
+  };
+
+  Color.prototype.similar = Color.prototype.similarHsl;
+
+  /**
+   * counts the similar pixels on a canvas
+   * returns if optional maximum value reached
+   * @param {HTMLCanvasElement} canvas
+   * @param {number=} max
+   * @return {number}
+   */
+  Color.prototype.countSimilars = function (canvas, max) {
+    var ctx = canvas.getContext("2d"),
+        imgData = ctx.getImageData(0, 0, canvas.width, canvas.height),
+        data = imgData.data,
+        i, tmpc, num = 0;
+    
+    for (i = 0; i < data.length; i+=4) {
+      tmpc = new Color(data[i], data[i+1], data[i+2]);
+      if (tmpc.similar(this)) {
+        num++;
+        if (max && num >= max) {
+          break;
+        }
+      }
+    }
+
+    return num;
+  };
+
+  /**
    * "Difference" between colors
    * @param {Color} color the color to compare
    * @return {number} the difference
    */
-  Color.prototype.diff = function (color) {
+  Color.prototype.diffHsl = function (color) {
     var hsl1 = this.toHsl(),
         hsl2 = color.toHsl();
 
     return Math.abs(hsl1[0] - hsl2[0]) * 10 + Math.abs(hsl1[1] - hsl2[1]);
   };
+
+  /**
+   * "Difference" between colors, based on rgb values
+   * @param {Color} color the color to compare
+   * @return {number} the difference
+   */
+  Color.prototype.diffRgb = function (color) {
+    var rd = this.red - color.red,
+        gd = this.green - color.green,
+        bd = this.blue - color.blue;
+
+    return Math.sqrt(rd*rd + gd*gd + bd*bd);
+  };
+
+  Color.prototype.diff = Color.prototype.diffRgb;
 
   /**
    * Return a new color object with the "average color" of the given list
@@ -200,8 +278,10 @@
    * @return {?Match}
    */
   Color.prototype.matchArea = function (imgData, x, y, radius) {
-    var i, j, c, tempc, go,
+    var i, j, c, tempc,
         direction, // 1: y, -1: -y
+        maxx = imgData.width,
+        maxy = imgData.height,
         blocks = [], colors = [], top, bottom, left, right;
 
     radius = radius || 3;
@@ -219,7 +299,6 @@
     }
 
     colors.push(c);
-    go = true;
     i = x; j = y;
     top = y - radius;
     bottom = y + radius;
@@ -228,7 +307,7 @@
     blocks.push({x: i, y: j, color: c, radius: radius});
     direction = -1;
 
-    while (go) {
+    while (true) {
       j += 2 * radius * direction;
       tempc = getRefColor(imgData, i, j, radius);
       if (tempc && tempc.similar(c)) {
@@ -239,22 +318,22 @@
         left = left <= i - radius ? left : i - radius;
         right = right >= i + radius ? right : i + radius;
       } else if (direction < 0) {
-        if (j < top) {
+        if (j < top || j <= 0) {
           direction = +1;
         }
       } else if (direction > 0) {
-        if (j > bottom) { 
-          if (i < right) {
+        if (j > bottom || j >= maxy) { 
+          if (i < right && i < (maxx - radius * 2) ) {
             c = Color.average(colors);
             direction = -1;
             i += radius * 2;
             j = parseInt((top + bottom) / 2, 10);
           } else {
-            go = false;
+            break;
           }
         }
       } else {
-        go = false;
+        break;
       }
     }
 
@@ -314,11 +393,12 @@
    * @param {HTMLCanvas} canvas
    * @deprecated
    */
-  Color.prototype.searchAndMarkOld = function (canvas) {
+  Color.prototype.searchAndMarkOld = function (canvas, config) {
     var ctx = canvas.getContext('2d'),
         imgData = ctx.getImageData(0, 0, canvas.width, canvas.height),
         x, y, border = 10,
-        radius = 3,
+        radius = config && config.radius || 3,
+        minmatch = config && config.minmatch,
         matches = [], i, l, m, bestm, bestmgoodness = 0;
 
     // TODO: overlapping matches?
@@ -335,6 +415,11 @@
 
         m = this.matchArea(imgData, x, y, radius);
         if (m) {
+          
+          if (minmatch && m.weight >= minmatch) {
+            return m;
+          }
+
           matches.push(m);
           if (m.weight > bestmgoodness) {
             bestm = m;
@@ -348,6 +433,8 @@
       ctx.strokeStyle = this.invert().toHex();
       ctx.strokeRect(bestm.left, bestm.top, bestm.width, bestm.height);
     }
+
+    return bestm;
   };
 
   /**
@@ -457,14 +544,14 @@
    * @constructor
    * @param {Color} color tracked color
    * @param {function(Color, Tracker, Object=)} fun tracking function
-   * @param {Object=} config configuration passed to the tracking function
    * @param {function=} callback callback function called with the result of the tracking function
+   * @param {Object=} config configuration passed to the tracking function
    */
-  var ColorTracking = ns.ColorTracking = function (color, fun, config, callback) {
+  var ColorTracking = ns.ColorTracking = function (color, fun, callback, config) {
     this.color = color;
     this.fun = fun;
-    this.config = config;
     this.callback = callback;
+    this.config = config;
   };
 
   /**
@@ -472,11 +559,82 @@
    * @param {Tracker} tracker
    */
   ColorTracking.prototype.run = function (tracker) {
-    var result = this.fun(this.color, tracker, this.config);
+    var result = this.fun.call(this, this.color, tracker, this.config);
 
     if (this.callback) {
       this.callback(result);
     }
+  };
+
+  /**
+   * Example algorithms
+   */
+  var algorithms = ns.algorithms = ns.algorithms || {};
+
+  /**
+   * simple pager
+   * checks the top/left/right 15% of the image for the specified color
+   * @param {Tracker} tracker
+   * @return {Object} object containing which area is active (top/left/right/bottom)
+   * example: { top: false, left: true, right: false, bottom: true }
+   */
+  algorithms.simplepager = function (color, tracker, config) {
+    var canvas = tracker.canvas;
+
+    if (!this.ctop) {
+      this.ctop = document.createElement("canvas");
+      // 15% top, 1/4 resolution
+      this.ctop.width = 160;
+      this.ctop.height = 18;
+      this.ctopctx = this.ctop.getContext("2d");
+    }
+
+    if (!this.cbottom) {
+      this.cbottom = document.createElement("canvas");
+      // 15% bottom, 1/4 resolution
+      this.cbottom.width = 160;
+      this.cbottom.height = 18;
+      this.cbottomctx = this.cbottom.getContext("2d");
+    }
+
+    if (!this.cleft) {
+      this.cleft = document.createElement("canvas");
+      // 15% left, 1/4 resolution
+      this.cleft.width = 24;
+      this.cleft.height = 120;
+      this.cleftctx = this.cleft.getContext("2d");
+    }
+
+    if (!this.cright) {
+      this.cright = document.createElement("canvas");
+      // 15% right, 1/4 resolution
+      this.cright.width = 24;
+      this.cright.height = 120;
+      this.crightctx = this.cright.getContext("2d");
+    }
+
+    /* TODO
+     * replace searchAndMarkOld with something better
+     */
+
+    this.ctopctx.drawImage(canvas, 0, 0, 640, 72, 0, 0, 160, 18);
+    this.topmatch = color.countSimilars(this.ctop, 30);
+
+    this.cbottomctx.drawImage(canvas, 0, 408, 640, 72, 0, 0, 160, 18);
+    this.bottommatch = color.countSimilars(this.cbottom, 30);
+
+    this.cleftctx.drawImage(canvas, 0, 0, 96, 480, 0, 0, 24, 120);
+    this.leftmatch = color.countSimilars(this.cleft, 30);
+
+    this.crightctx.drawImage(canvas, 544, 0, 96, 480, 0, 0, 24, 120);
+    this.rightmatch = color.countSimilars(this.cright, 30);
+
+    return {
+      top: !!this.topmatch,
+      bottom: !!this.bottommatch,
+      left: !!this.leftmatch,
+      right: !!this.rightmatch
+    };
   };
 
 }(window));

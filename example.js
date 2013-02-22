@@ -7,6 +7,7 @@ var handleCamera = function (video) {
   tracker.start();
   tracker.showCanvas();
 
+  /* old search & mark */
   canvas.addEventListener('click', function (e) {
     var canvas = tracker.canvas,
         ctx = tracker.ctx,
@@ -25,13 +26,33 @@ var handleCamera = function (video) {
       console.log(color + " " + color.toHex() + " " + color.toHsl());
     }
 
-    var ct = new cd.ColorTracking(color, function (color, tracker) {
+    var ctosm = new cd.ColorTracking(color, function (color, tracker) {
       color.searchAndMarkOld(tracker.canvas);
     });
 
-    tracker.addTracking(ct, "test");
+    tracker.addTracking(ctosm, "osm");
 
   });
+
+  /* pager */
+  var debug = document.createElement('div');
+  document.body.appendChild(debug);
+  var ctpager = new cd.ColorTracking(
+    new cd.Color(11, 157, 173), // my cyan pen
+    cd.algorithms.simplepager,
+    function (res) {
+      if (res.top || res.left || res.right || res.bottom) {
+        debug.innerHTML =
+          (res.top && " top " || "") +
+          (res.bottom && " bottom " || "") +
+          (res.left && " left " || "") +
+          (res.right && " right " || "");
+      } else {
+        debug.innerHTML = "";
+      }
+    }
+  );
+  tracker.addTracking(ctpager, "simplepager");
 };
 
 cd.getCamera(handleCamera);
