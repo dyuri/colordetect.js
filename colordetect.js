@@ -454,6 +454,7 @@
     this.canvas.width = this.video.width;
     this.canvas.height = this.video.height;
     this.canvas.style.display = "none";
+    this.canvas.classList.add("cd_flippedCanvas");
     document.body.appendChild(this.canvas);
 
     this.tracking = {};
@@ -529,6 +530,24 @@
    * TODO show in popup?
    */
   Tracker.prototype.showCanvas = function () {
+    var overlay = document.getElementById("cd_canvasOverlay"),
+        holder = document.getElementById("cd_canvasHolder");
+
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "cd_canvasOverlay";
+      overlay.style.display = "block";
+      document.body.appendChild(overlay);
+    }
+
+    if (!holder) {
+      holder = document.createElement("div");
+      holder.id = "cd_canvasHolder";
+      overlay.appendChild(holder);
+    }
+
+    holder.appendChild(this.canvas);
+
     this.canvas.style.display = "block";
   };
 
@@ -536,6 +555,17 @@
    * TODO hide w/ popup?
    */
   Tracker.prototype.hideCanvas = function () {
+    var overlay = document.getElementById("cd_canvasOverlay"),
+        holder = document.getElementById("cd_canvasHolder");
+
+    if (overlay) {
+      overlay.style.display = "none";
+    }
+
+    if (holder) {
+      holder.removeChild(this.canvas);
+    }
+
     this.canvas.style.display = "none";
   };
 
