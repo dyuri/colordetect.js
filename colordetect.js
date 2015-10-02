@@ -179,7 +179,6 @@
   /**
    * Compares two color based on RGB values if they are the same or not
    * @param {Color} color
-   * @param {number=} threshold
    */
   Color.prototype.same = function (color) {
     return this.diff(color) === 0;
