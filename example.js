@@ -3,7 +3,14 @@ var tracker;
 
 var handleCamera = function (video) {
   var canvas;
-  
+  var copyCanvas = document.createElement('canvas');
+
+  copyCanvas.id = "copyCanvas";
+  copyCanvas.width = 640;
+  copyCanvas.height = 480;
+
+  document.body.appendChild(copyCanvas);
+
   tracker = new cd.Tracker(video);
   tracker.start();
   tracker.showCanvas();
@@ -77,6 +84,15 @@ var handleCamera = function (video) {
       { threshold: 200 }
     );
     tracker.addTracking(ctpager, "simplepager");
+
+    // snapshot on click
+    var colorFn = function (cC, sC, fC, iData, cx, cy) {
+      cd.setColor(iData, cx, cy, new cd.Color(255, 0, 0, .5));
+    };
+    var matcherFn = function (cC, sC, fC, iData, cx, cy) {
+      return cC.similar(sC) && !(cC.alpha < 1);
+    };
+    copyCanvas.getContext('2d').putImageData(cd.floodFill(ctx.getImageData(0, 0, 640, 480), e.offsetX, e.offsetY, color.invert(), matcherFn, colorFn), 0, 0);
   });
 
 };

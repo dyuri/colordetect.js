@@ -177,6 +177,15 @@
   Color.prototype.similar = Color.prototype.similarHsl;
 
   /**
+   * Compares two color based on RGB values if they are the same or not
+   * @param {Color} color
+   * @param {number=} threshold
+   */
+  Color.prototype.same = function (color) {
+    return this.diff(color) === 0;
+  };
+
+  /**
    * counts the similar pixels on a canvas
    * returns if optional maximum value reached
    * @param {HTMLCanvasElement} canvas
@@ -349,7 +358,7 @@
    */
   var getColor = ns.getColor = function (imgData, x, y) {
     var offset = y*imgData.width*4 + x*4;
-    return new Color(imgData.data[offset], imgData.data[offset+1], imgData.data[offset+2]);
+    return new Color(imgData.data[offset], imgData.data[offset+1], imgData.data[offset+2], imgData.data[offset+3]/255);
   };
 
   /**
@@ -364,6 +373,88 @@
     imgData.data[offset] = color.red;
     imgData.data[offset+1] = color.green;
     imgData.data[offset+2] = color.blue;
+    imgData.data[offset+3] = color.alpha * 255|0;
+  };
+
+  /**
+   * flood fill the selected area with the given color
+   * @param {ImageData} imgData
+   * @param {number} startX
+   * @param {number} startY
+   * @param {Color} fillColor
+   * @param {function} matcherFn (currentColor, startColor, fillColor, imgData, x, y)
+   * @param {function} colorFn (currentColor, startColor, fillColor, imgData, x, y)
+   */
+  var floodFill = ns.floodFill = function (imgData, startX, startY, fillColor, matcherFn, colorFn) {
+    var newPos,
+        x, y,
+        currentColor,
+        startColor = getColor(imgData, startX, startY),
+        reachLeft,
+        reachRight,
+        drawingBoundLeft = 0,
+        drawingBoundTop = 0,
+        drawingBoundRight = imgData.width - 1,
+        drawingBoundBottom = imgData.height - 1,
+        pixelStack = [[startX, startY]];
+
+    matcherFn = matcherFn || function (cColor, sColor, fColor) {
+      return !fColor.same(cColor) && sColor.similarRgb(cColor);
+    };
+
+    colorFn = colorFn || function (cColor, sColor, fColor, iData, cx, cy) {
+      setColor(iData, cx, cy, fColor);
+    };
+
+    while (pixelStack.length) {
+      newPos = pixelStack.pop();
+      x = newPos[0];
+      y = newPos[1];
+
+      currentColor = getColor(imgData, x, y);
+
+      while (y >= drawingBoundTop && matcherFn(currentColor, startColor, fillColor, imgData, x, y)) {
+        y -= 1;
+        currentColor = getColor(imgData, x, y);
+      }
+
+      y += 1;
+      reachLeft = false;
+      reachRight = false;
+      currentColor = getColor(imgData, x, y);
+
+      while (y <= drawingBoundBottom && matcherFn(currentColor, startColor, fillColor, imgData, x, y)) {
+
+        colorFn(currentColor, startColor, fillColor, imgData, x, y);
+
+        if (x > drawingBoundLeft) {
+          if (matcherFn(getColor(imgData, x-1, y), startColor, fillColor, imgData, x-1, y)) {
+            if (!reachLeft) {
+              pixelStack.push([x-1, y]);
+              reachLeft = true;
+            }
+          } else if (reachLeft) {
+            reachLeft = false;
+          }
+        }
+
+        if (x < drawingBoundRight) {
+          if (matcherFn(getColor(imgData, x+1, y), startColor, fillColor, imgData, x+1, y)) {
+            if (!reachRight) {
+              pixelStack.push([x+1, y]);
+              reachRight = true;
+            }
+          } else if (reachRight) {
+            reachRight = false;
+          }
+        }
+
+        y += 1;
+        currentColor = getColor(imgData, x, y);
+      }
+    }
+
+    return imgData;
   };
 
   /**
