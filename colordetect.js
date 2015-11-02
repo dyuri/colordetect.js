@@ -376,6 +376,49 @@
   };
 
   /**
+   * r/g/b histogram
+   * @param {ImageData} imgData
+   */
+  var histogram = ns.histogram = function (imgData) {
+    var a256 = function (dValue) {
+          var i, arr = [];
+          for (i = 0; i < 256; i++) {
+            arr[i] = dValue;
+          }
+          return arr;
+        },
+        normalize = function (arr) {
+          var max = Math.max.apply(null, arr);
+
+          return arr.map(function (v) {
+            return 100 * v / max;
+          });
+        },
+        rHist = a256(0),
+        gHist = a256(0),
+        bHist = a256(0),
+        bwHist = a256(0),
+        x, y, c;
+
+    for (y = 0; y < imgData.height; y++) {
+      for (x = 0; x < imgData.width; x++) {
+        c = getColor(imgData, x, y);
+        rHist[c.red]++;
+        gHist[c.green]++;
+        bHist[c.blue]++;
+        bwHist[parseInt((c.red+c.green+c.blue)/3, 10)]++;
+      }
+    }
+
+    return {
+      red: normalize(rHist),
+      green: normalize(gHist),
+      blue: normalize(bHist),
+      grayscale: normalize(bwHist)
+    };
+  };
+
+  /**
    * flood fill the selected area with the given color
    * @param {ImageData} imgData
    * @param {number} startX
