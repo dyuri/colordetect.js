@@ -92,7 +92,8 @@ var handleCamera = function (video) {
     var matcherFn = function (cC, sC, fC, iData, cx, cy) {
       return cC.similar(sC) && !(cC.alpha < 1);
     };
-    copyCanvas.getContext('2d').putImageData(cd.floodFill(ctx.getImageData(0, 0, 640, 480), e.offsetX, e.offsetY, color.invert(), matcherFn, colorFn), 0, 0);
+    copyCanvas.getContext('2d').putImageData(ctx.getImageData(0, 0, 640, 480), 0, 0);
+    console.log(cd.histogram(copyCanvas.getContext('2d').getImageData(0, 0, 640, 480)));
   });
 
 };
