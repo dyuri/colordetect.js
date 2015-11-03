@@ -500,42 +500,52 @@
   };
 
   /**
+   * transform histogram
+   * @param {ImageData} imgData
+   * @param {Object} from histogram range to transform from
+   * @param {Object} to histogram range to transform to
+   * @return {ImageData}
+   */
+  var transformHistogram = ns.transformHistogram = function (imgData, from, to) {
+    var x, y, color,
+        transformColor = function (c, f, t) {
+          ['red', 'green', 'blue'].forEach(function (component) {
+            var cFrom = f[component],
+                cTo = t[component];
+
+            c[component] = Math.max(Math.min(cTo.min + cTo.max * (c[component] - cFrom.min) / (cFrom.max - cFrom.min), 255), 0);
+          });
+
+          return c;
+        };
+
+    to = to || {
+      red: {min: 0, max: 255},
+      green: {min: 0, max: 255},
+      blue: {min: 0, max: 255}
+    };
+
+    for (y = 0; y < imgData.height; y++) {
+      for (x = 0; x < imgData.width; x++) {
+        color = getColor(imgData, x, y);
+        setColor(imgData, x, y, transformColor(color, from, to));
+      }
+    }
+
+    return imgData;
+  };
+
+  /**
    * strech rgb contrast
    * @param {ImageData} imgData
+   * @param {number=} threshold histogram minimum threshold to ignore
+   * @param {Object} border low/high borders of histogram mapping
    * @return {ImageData}
    */
   var strechContrast = ns.strechContrast = function (imgData, threshold, border) {
-    var borders = histogramBorders(imgData, threshold, border),
-        transform = function (iData, form, to) {
-          var x, y, color,
-              transformColor = function (c, f, t) {
-                ['red', 'green', 'blue'].forEach(function (component) {
-                  var cFrom = f[component],
-                      cTo = t[component];
+    var borders = histogramBorders(imgData, threshold, border);
 
-                  c[component] = Math.max(Math.min(cTo.min + cTo.max * (c[component] - cFrom.min) / (cFrom.max - cFrom.min), 255), 0);
-                });
-
-                return c;
-              };
-
-          to = to || {
-            red: {min: 0, max: 255},
-            green: {min: 0, max: 255},
-            blue: {min: 0, max: 255}
-          };
-
-          for (y = 0; y < iData.height; y++) {
-            for (x = 0; x < iData.width; x++) {
-              color = getColor(imgData, x, y);
-              setColor(iData, x, y, transformColor(color, borders, to));
-            }
-          }
-
-          return iData;
-        };
-
-    return transform(imgData, borders);
+    return transformHistogram(imgData, borders);
   };
 
   /**
