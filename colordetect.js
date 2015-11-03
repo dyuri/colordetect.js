@@ -56,6 +56,18 @@
   };
 
   /**
+   * Some constant colors
+   */
+  Color.RED = new Color(255, 0, 0);
+  Color.GREEN = new Color(0, 255, 0);
+  Color.BLUE = new Color(0, 0, 255);
+  Color.YELLOW = new Color(255, 255, 0);
+  Color.MAGENTA = new Color(255, 0, 255);
+  Color.CYAN = new Color(0, 255, 255);
+  Color.WHITE = new Color(255, 255, 255);
+  Color.BLACK = new Color(0, 0, 0);
+
+  /**
    * check if the color is valid
    * @return {boolean}
    */
@@ -84,6 +96,15 @@
    */
   Color.prototype.invert = function () {
     return new Color(255-this.red, 255-this.green, 255-this.blue, this.alpha);
+  };
+
+  /**
+   * return the complementer color
+   * @param {number=} alpha alpha value to set
+   * @return {Color}
+   */
+  Color.prototype.opacity = function (alpha) {
+    return new Color(this.red, this.green, this.blue, alpha||0);
   };
 
   /**
@@ -414,8 +435,107 @@
       red: normalize(rHist),
       green: normalize(gHist),
       blue: normalize(bHist),
-      grayscale: normalize(bwHist)
+      grayscale: normalize(bwHist),
+      rawred: rHist,
+      rawgreen: gHist,
+      rawblue: bHist,
+      rawgrayscale: bwHist
     };
+  };
+
+  /**
+   * draw histogram on a canvas
+   * @param {Array.<number>} histogram
+   * @param {Color} color drawing color
+   * @param {HTMLCanvas} canvas canvas to draw on
+   * @param {number=} x x of top left coordinate
+   * @param {number=} y y of top left coordinate
+   * @param {number=} w width of the histogram
+   * @param {number=} h height of the histogram
+   */
+  var drawHistogram = ns.drawHistogram = function (histogram, color, canvas, x, y, w, h) {
+    var ctx = canvas.getContext('2d'), w1, h1;
+
+    x = x || 0;
+    y = y || 0;
+    h = h || 100;
+    w = w || 256;
+
+    w1 = w/256;
+    h1 = h/100;
+
+    ctx.fillStyle = color.toString();
+    histogram.forEach(function (v, i) {
+      ctx.fillRect(x+w1*i|0, y+h|0, w1|0, -h1*v|0);
+    });
+  };
+
+  /**
+   * get histogram borders
+   * @param {ImageData} imgData
+   * @return {ImageData}
+   */
+  var histogramBorders = ns.histogramBorders = function (imgData, threshold, border) {
+    var histData = histogram(imgData),
+        borders = {},
+        numPixels = imgData.width * imgData.height,
+        findMinMax = function (arr, thr, bdr) {
+          var min = bdr, max = 255 - bdr;
+
+          while (min < 128 && arr[min] < thr * numPixels) { min++; }
+          while (max > 128 && arr[max] < thr * numPixels) { max--; }
+
+          return {min: min, max: max};
+        };
+
+    threshold = threshold === 0 ? 0 : threshold || 0.001;
+    border = border === 0 ? 0 : border || 2;
+
+    // find min / max values above threshold
+    ['red', 'green', 'blue'].forEach(function (component) {
+      borders[component] = findMinMax(histData['raw'+component], threshold, border);
+    });
+
+    return borders;
+  };
+
+  /**
+   * strech rgb contrast
+   * @param {ImageData} imgData
+   * @return {ImageData}
+   */
+  var strechContrast = ns.strechContrast = function (imgData, threshold, border) {
+    var borders = histogramBorders(imgData, threshold, border),
+        transform = function (iData, form, to) {
+          var x, y, color,
+              transformColor = function (c, f, t) {
+                ['red', 'green', 'blue'].forEach(function (component) {
+                  var cFrom = f[component],
+                      cTo = t[component];
+
+                  c[component] = Math.max(Math.min(cTo.min + cTo.max * (c[component] - cFrom.min) / (cFrom.max - cFrom.min), 255), 0);
+                });
+
+                return c;
+              };
+
+          to = to || {
+            red: {min: 0, max: 255},
+            green: {min: 0, max: 255},
+            blue: {min: 0, max: 255}
+          };
+
+          for (y = 0; y < iData.height; y++) {
+            for (x = 0; x < iData.width; x++) {
+              color = getColor(imgData, x, y);
+              setColor(iData, x, y, transformColor(color, borders, to));
+            }
+          }
+
+          return iData;
+        };
+
+    return transform(imgData, borders);
   };
 
   /**
