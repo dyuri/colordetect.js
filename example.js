@@ -93,7 +93,17 @@ var handleCamera = function (video) {
       return cC.similar(sC) && !(cC.alpha < 1);
     };
     copyCanvas.getContext('2d').putImageData(ctx.getImageData(0, 0, 640, 480), 0, 0);
-    console.log(cd.histogram(copyCanvas.getContext('2d').getImageData(0, 0, 640, 480)));
+    var hist = cd.histogram(copyCanvas.getContext('2d').getImageData(0, 0, 640, 480));
+    copyCanvas.getContext('2d').putImageData(cd.strechContrast(ctx.getImageData(0, 0, 640, 480)), 0, 0);
+    /*
+    copyCanvas.getContext('2d').globalCompositeOperation = "overlay";
+    cd.drawHistogram(hist.red, cd.Color.RED.opacity(64), copyCanvas, 0, 0);
+    cd.drawHistogram(hist.green, cd.Color.GREEN.opacity(128), copyCanvas, 0, 0);
+    cd.drawHistogram(hist.blue, cd.Color.BLUE.opacity(192), copyCanvas, 0, 0);
+    */
+    cd.drawHistogram(hist.red, cd.Color.RED, copyCanvas, 0, 0, null, 50);
+    cd.drawHistogram(hist.green, cd.Color.GREEN, copyCanvas, 0, 50, null, 50);
+    cd.drawHistogram(hist.blue, cd.Color.BLUE, copyCanvas, 0, 100, null, 50);
   });
 
 };
