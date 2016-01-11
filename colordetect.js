@@ -52,7 +52,7 @@
     this.red = parseInt(r, 10);
     this.green = parseInt(g, 10);
     this.blue = parseInt(b, 10);
-    this.alpha = parseFloat(a || 1);
+    this.alpha = parseFloat(a === 0 ? 0 : a || 1);
   };
 
   /**
@@ -400,7 +400,7 @@
    * r/g/b histogram
    * @param {ImageData} imgData
    */
-  var histogram = ns.histogram = function (imgData) {
+  var histogram = ns.histogram = function (imgData, ignoreTransparent) {
     var a256 = function (dValue) {
           var i, arr = [];
           for (i = 0; i < 256; i++) {
@@ -424,10 +424,12 @@
     for (y = 0; y < imgData.height; y++) {
       for (x = 0; x < imgData.width; x++) {
         c = getColor(imgData, x, y);
-        rHist[c.red]++;
-        gHist[c.green]++;
-        bHist[c.blue]++;
-        bwHist[parseInt((c.red+c.green+c.blue)/3, 10)]++;
+        if (!ignoreTransparent || c.alpha > 0) {
+          rHist[c.red]++;
+          gHist[c.green]++;
+          bHist[c.blue]++;
+          bwHist[parseInt((c.red+c.green+c.blue)/3, 10)]++;
+        }
       }
     }
 
